@@ -1,0 +1,71 @@
+from machine import I2C, Pin
+from time import sleep
+import sys
+
+from libs.ssd1306 import SSD1306_I2C
+import libs.DFRobot_AHT20 as DFRobot_AHT20
+
+pin = Pin("LED", Pin.OUT)
+
+# Sensor AHT20
+try:
+    i2c_AHT20 = I2C(0, scl=Pin(17), sda=Pin(16)) # Cada i2c deve ter um id diferente
+    sensor_AHT20 = DFRobot_AHT20.DFRobot_AHT20(i2c_AHT20)
+
+    if sensor_AHT20.begin() != True:
+        print("Failed to start sensor")
+        sys.exit(1)
+
+    print("Scan AHT20:", i2c_AHT20.scan())
+except Exception as e:
+    print("Erro ao iniciar o sensor AHT20:", e)
+    sys.exit(1)
+
+# Display
+try:
+    i2c_display = I2C(1, sda=Pin(0), scl=Pin(1)) # Cada i2c deve ter um id diferente
+    print("Scan display:", i2c_display.scan())
+    oled = SSD1306_I2C(width=128, height=64, i2c=i2c_display)
+except Exception as e:
+    print("Erro ao iniciar o display:", e)
+    sys.exit(1)
+
+oled.fill(0)
+oled.text("Linha 1", 0, 0)
+oled.text("Linha 2", 0, 10)
+oled.text("Linha 3", 0, 20)
+oled.show()
+
+
+def read_AHT20():
+    try:
+        sensor_AHT20.start_measurement_ready()
+        temperature = sensor_AHT20.get_temperature_C()
+        humidity = sensor_AHT20.get_humidity_RH()
+        print(f"Temperature: {temperature:3.1f} C")
+        print(f"Humidity: {humidity:3.1f} %")
+        oled.fill(0)
+        oled.text(f"Temperatura: {temperature:3.1f} C", 0, 0)
+        oled.text(f"Umidade: {humidity:3.1f} %", 0, 10)
+        oled.show()
+        return f'{{"temperature": {temperature:3.1f}, "humidity": {humidity:3.1f}}}\r\n'
+    except OSError as e:
+        print("Failed to read sensor.")
+
+
+while True:
+    try:
+        pin.toggle()
+        read_AHT20()
+        sleep(1)
+    except Exception as e:
+        print("Erro:", e)
+        pin.off()
+        i2c_AHT20.stop()
+        i2c_display.stop()
+        break
+
+pin.off()
+i2c_AHT20.stop()
+i2c_display.stop()
+print("Finished.")
